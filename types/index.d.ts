@@ -154,6 +154,11 @@ interface FirebasePlugin {
         success?: () => void,
         error?: (err: string) => void
     ): void
+    authenticateUserWithPlayGames(
+        clientId: string,
+        success?: () => void,
+        error?: (err: string) => void
+    ): void
     authenticateUserWithApple(
         success?: () => void,
         error?: (err: string) => void,
@@ -309,6 +314,26 @@ interface FirebasePlugin {
     fetchFirestoreCollection(
         collection: string,
         success: (collection: object) => void,
+        error: (err: string) => void
+    ): void
+    unlockAchievement(
+        achievementId: string,
+        success: () => void,
+        error: (err: string) => void
+    ): void
+    showAchievements(
+        success: () => void,
+        error: (err: string) => void
+    ): void
+    submitScore(
+        boardId: string,
+        score: number,
+        success: () => void,
+        error: (err: string) => void
+    ): void
+    showLeaderboard(
+        boardId: string,
+        success: () => void,
         error: (err: string) => void
     ): void
 }

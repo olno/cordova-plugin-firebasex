@@ -43,6 +43,7 @@ import com.google.firebase.auth.FirebaseAuth;
 import com.google.firebase.auth.FirebaseUser;
 import com.google.firebase.auth.GetTokenResult;
 import com.google.firebase.auth.GoogleAuthProvider;
+import com.google.firebase.auth.PlayGamesAuthProvider;
 import com.google.firebase.auth.OAuthProvider;
 import com.google.firebase.auth.UserProfileChangeRequest;
 import com.google.firebase.firestore.CollectionReference;
@@ -62,6 +63,13 @@ import com.google.firebase.remoteconfig.FirebaseRemoteConfigValue;
 import com.google.firebase.perf.FirebasePerformance;
 import com.google.firebase.perf.metrics.Trace;
 
+import com.google.android.gms.games.AchievementsClient;
+import com.google.android.gms.games.AnnotatedData;
+import com.google.android.gms.games.EventsClient;
+import com.google.android.gms.games.Games;
+import com.google.android.gms.games.LeaderboardsClient;
+import com.google.android.gms.games.event.Event;
+import com.google.android.gms.games.event.EventBuffer;
 
 import org.apache.cordova.CallbackContext;
 import org.apache.cordova.CordovaInterface;
@@ -103,6 +111,10 @@ public class FirebasePlugin extends CordovaPlugin {
     private Gson gson;
     private FirebaseAuth.AuthStateListener authStateListener;
     private boolean authStateChangeListenerInitialized = false;
+
+    private AchievementsClient mAchievementsClient;
+    private LeaderboardsClient mLeaderboardsClient;
+
     private static CordovaInterface cordovaInterface = null;
     protected static Context applicationContext = null;
     private static Activity cordovaActivity = null;
@@ -110,7 +122,9 @@ public class FirebasePlugin extends CordovaPlugin {
     protected static final String TAG = "FirebasePlugin";
     protected static final String JS_GLOBAL_NAMESPACE = "FirebasePlugin.";
     protected static final String KEY = "badge";
+    protected static final int RC_NONE = 0x0;
     protected static final int GOOGLE_SIGN_IN = 0x1;
+    protected static final int GAMES_SIGN_IN = 0x2;
     protected static final String SETTINGS_NAME = "settings";
     private static final String CRASHLYTICS_COLLECTION_ENABLED = "firebase_crashlytics_collection_enabled";
     private static final String ANALYTICS_COLLECTION_ENABLED = "firebase_analytics_collection_enabled";
@@ -270,6 +284,9 @@ public class FirebasePlugin extends CordovaPlugin {
             } else if (action.equals("authenticateUserWithApple")) {
                 this.authenticateUserWithApple(callbackContext, args);
                 return true;
+            } else if (action.equals("authenticateUserWithPlayGames")) {
+                this.authenticateUserWithPlayGames(callbackContext, args);
+                return true;
             } else if (action.equals("createUserWithEmailAndPassword")) {
                 this.createUserWithEmailAndPassword(callbackContext, args);
                 return true;
@@ -397,7 +414,16 @@ public class FirebasePlugin extends CordovaPlugin {
                 // Stubs for other platform methods
                 callbackContext.sendPluginResult(new PluginResult(PluginResult.Status.OK, true));
                 return true;
-            }else{
+            } else if (action.equals("unlockAchievement")) {
+                this.unlockAchievement(callbackContext, args);
+            } else if (action.equals("showAchievements")) {
+                this.showAchievements(callbackContext);
+            } else if (action.equals("submitScore")) {
+                this.submitScore(callbackContext, args);
+            } else if (action.equals("showLeaderboard")) {
+                this.showLeaderboard(callbackContext, args);
+            }
+            else{
                 callbackContext.error("Invalid action: " + action);
                 return false;
             }
@@ -440,7 +466,7 @@ public class FirebasePlugin extends CordovaPlugin {
         super.onActivityResult(requestCode, resultCode, data);
         try {
             switch (requestCode) {
-                case GOOGLE_SIGN_IN:
+                case GOOGLE_SIGN_IN: {
                     Task<GoogleSignInAccount> task = GoogleSignIn.getSignedInAccountFromIntent(data);
                     GoogleSignInAccount acct;
                     try{
@@ -460,6 +486,32 @@ public class FirebasePlugin extends CordovaPlugin {
                     returnResults.put("id", id);
                     FirebasePlugin.activityResultCallbackContext.success(returnResults);
                     break;
+                }
+                case GAMES_SIGN_IN: {
+                    Task<GoogleSignInAccount> task = GoogleSignIn.getSignedInAccountFromIntent(data);
+                    GoogleSignInAccount acct;
+                    try{
+                        acct = task.getResult(ApiException.class);
+                    }catch (ApiException ae){
+                        if(ae.getStatusCode() == 10){
+                            throw new Exception("Unknown server client ID");
+                        }else{
+                            throw new Exception(CommonStatusCodes.getStatusCodeString(ae.getStatusCode()));
+                        }
+                    }
+
+                    mAchievementsClient = Games.getAchievementsClient(cordova.getActivity(), acct);
+                    mLeaderboardsClient = Games.getLeaderboardsClient(cordova.getActivity(), acct);
+
+                    AuthCredential credential = PlayGamesAuthProvider.getCredential(acct.getServerAuthCode());
+                    String id = FirebasePlugin.instance.saveAuthCredential(credential);
+
+                    JSONObject returnResults = new JSONObject();
+                    returnResults.put("instantVerification", true);
+                    returnResults.put("id", id);
+                    FirebasePlugin.activityResultCallbackContext.success(returnResults);
+                    break;
+                }
             }
         } catch (Exception e) {
             handleExceptionWithContext(e, FirebasePlugin.activityResultCallbackContext);
@@ -1006,9 +1058,21 @@ public class FirebasePlugin extends CordovaPlugin {
                     // Sign out of Firebase
                     FirebaseAuth.getInstance().signOut();
 
+                    mAchievementsClient = null;
+                    mLeaderboardsClient = null;
+
                     // Try to sign out of Google
                     try{
                         GoogleSignInOptions gso = new GoogleSignInOptions.Builder(GoogleSignInOptions.DEFAULT_SIGN_IN).build();
+                        GoogleSignInClient mGoogleSignInClient = GoogleSignIn.getClient(cordovaActivity, gso);
+                        handleTaskOutcome(mGoogleSignInClient.signOut(), callbackContext);
+                    }catch(Exception googleSignOutException){
+                        callbackContext.success();
+                    }
+
+                    // Try to sign out of Play games
+                    try{
+                        GoogleSignInOptions gso = new GoogleSignInOptions.Builder(GoogleSignInOptions.DEFAULT_GAMES_SIGN_IN).build();
                         GoogleSignInClient mGoogleSignInClient = GoogleSignIn.getClient(cordovaActivity, gso);
                         handleTaskOutcome(mGoogleSignInClient.signOut(), callbackContext);
                     }catch(Exception googleSignOutException){
@@ -1482,9 +1546,59 @@ public class FirebasePlugin extends CordovaPlugin {
                             .build();
 
                     GoogleSignInClient mGoogleSignInClient = GoogleSignIn.getClient(FirebasePlugin.instance.cordovaActivity, gso);
+
                     Intent signInIntent = mGoogleSignInClient.getSignInIntent();
                     FirebasePlugin.activityResultCallbackContext = callbackContext;
                     FirebasePlugin.instance.cordovaInterface.startActivityForResult(FirebasePlugin.instance, signInIntent, GOOGLE_SIGN_IN);
+                } catch (Exception e) {
+                    handleExceptionWithContext(e, callbackContext);
+                }
+            }
+        });
+    }
+
+    public void authenticateUserWithPlayGames(final CallbackContext callbackContext, final JSONArray args){
+        cordova.getThreadPool().execute(new Runnable() {
+            public void run() {
+                try {
+                    String clientId = args.getString(0);
+
+                    GoogleSignInOptions gso = new GoogleSignInOptions.Builder(GoogleSignInOptions.DEFAULT_GAMES_SIGN_IN)
+                            .requestServerAuthCode(clientId)
+                            .build();
+
+                    GoogleSignInClient mGoogleSignInClient = GoogleSignIn.getClient(FirebasePlugin.instance.cordovaActivity, gso);
+                    
+                    mGoogleSignInClient.silentSignIn().addOnCompleteListener(cordova.getActivity(),
+                        new OnCompleteListener<GoogleSignInAccount>() {
+                        @Override
+                        public void onComplete(@NonNull Task<GoogleSignInAccount> task) {
+                            if (task.isSuccessful()) {
+                                GoogleSignInAccount acct = task.getResult();
+
+                                mAchievementsClient = Games.getAchievementsClient(cordova.getActivity(), acct);
+                                mLeaderboardsClient = Games.getLeaderboardsClient(cordova.getActivity(), acct);
+
+                                AuthCredential credential = PlayGamesAuthProvider.getCredential(acct.getServerAuthCode());
+
+                                String id = FirebasePlugin.instance.saveAuthCredential(credential);
+                                try {
+                                    JSONObject returnResults = new JSONObject();
+                                    returnResults.put("instantVerification", true);
+                                    returnResults.put("id", id);
+                                    callbackContext.sendPluginResult(new PluginResult(PluginResult.Status.OK, returnResults));
+                                }
+                                catch (Exception e) {
+                                    handleExceptionWithContext(e, callbackContext);
+                                }
+                            } else {
+                                Intent signInIntent = mGoogleSignInClient.getSignInIntent();
+
+                                FirebasePlugin.activityResultCallbackContext = callbackContext;
+                                FirebasePlugin.instance.cordovaInterface.startActivityForResult(FirebasePlugin.instance, signInIntent, GAMES_SIGN_IN);
+                            }
+                        }
+                    });
                 } catch (Exception e) {
                     handleExceptionWithContext(e, callbackContext);
                 }
@@ -1550,6 +1664,89 @@ public class FirebasePlugin extends CordovaPlugin {
                 }
             }
         });
+    }
+
+    public void unlockAchievement(final CallbackContext callbackContext, final JSONArray args){
+        cordova.getThreadPool().execute(new Runnable() {
+            public void run() {
+                try {
+                    if (mAchievementsClient != null) {
+                        String achievementId = args.getString(0);
+
+                        mAchievementsClient.unlock(achievementId);
+                    }
+                } catch (Exception e) {
+                    handleExceptionWithContext(e, callbackContext);
+                }
+            }
+        });
+    }
+
+    public void showAchievements(final CallbackContext callbackContext){
+        cordova.getThreadPool().execute(new Runnable() {
+            public void run() {
+                try {
+                    if (mAchievementsClient != null) {
+                        mAchievementsClient.getAchievementsIntent()
+                            .addOnSuccessListener(new OnSuccessListener<Intent>() {
+                                @Override
+                                public void onSuccess(Intent intent) {
+                                    FirebasePlugin.instance.cordovaInterface.startActivityForResult(FirebasePlugin.instance, intent, RC_NONE);
+                                }
+                        })
+                        .addOnFailureListener(new OnFailureListener() {
+                            @Override
+                            public void onFailure(@NonNull Exception e) {
+                                handleExceptionWithContext(e, callbackContext);
+                            }
+                        });
+                    }
+                } catch (Exception e) {
+                    handleExceptionWithContext(e, callbackContext);
+                }
+            }
+        });
+    }
+
+    public void submitScore(final CallbackContext callbackContext, final JSONArray args) {
+        cordova.getThreadPool().execute(new Runnable() {
+            public void run() {
+                try {
+                    if (mLeaderboardsClient != null) {
+                        String boardId = args.getString(0);
+                        int score = args.getInt(1);
+
+                        mLeaderboardsClient.submitScore(boardId, score);
+                    }
+                } catch (Exception e) {
+                    handleExceptionWithContext(e, callbackContext);
+                }
+            }
+        });
+    }
+
+    public void showLeaderboard(final CallbackContext callbackContext, final JSONArray args) {
+        try {
+            if (mLeaderboardsClient != null) {
+                String boardId = args.getString(0);
+
+                mLeaderboardsClient.getLeaderboardIntent(boardId)
+                .addOnSuccessListener(new OnSuccessListener<Intent>() {
+                    @Override
+                    public void onSuccess(Intent intent) {
+                        FirebasePlugin.instance.cordovaInterface.startActivityForResult(FirebasePlugin.instance, intent, RC_NONE);
+                    }
+                })
+                .addOnFailureListener(new OnFailureListener() {
+                    @Override
+                    public void onFailure(@NonNull Exception e) {
+                        handleExceptionWithContext(e, callbackContext);
+                    }
+                });
+            }
+        } catch (Exception e) {
+            handleExceptionWithContext(e, callbackContext);
+        }
     }
 
     //
