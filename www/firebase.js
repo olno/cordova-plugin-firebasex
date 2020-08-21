@@ -397,9 +397,6 @@ exports.unlockAchievement = function (achievementId, success, error) {
 };
 
 exports.showAchievements = function (success, error) {
-    if (typeof achievementId !== 'string')
-        return error("'achievementId' must be a string specifying the achievementId");
-
     exec(success, error, "FirebasePlugin", "showAchievements", []);
 };
 
