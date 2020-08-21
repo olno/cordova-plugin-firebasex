@@ -407,12 +407,12 @@ exports.submitScore = function (boardId, score, success, error) {
     if (typeof boardId !== 'string')
         return error("'boardId' must be a string specifying the boardId");
 
-    exec(success, error, "FirebasePlugin", "unlockAchievement", [boardId, score]);
+    exec(success, error, "FirebasePlugin", "submitScore", [boardId, score]);
 };
 
 exports.showLeaderboard = function (boardId, success, error) {
     if (typeof boardId !== 'string')
         return error("'boardId' must be a string specifying the boardId");
 
-    exec(success, error, "FirebasePlugin", "showAchievements", [boardId]);
+    exec(success, error, "FirebasePlugin", "showLeaderboard", [boardId]);
 };
