@@ -1672,7 +1672,6 @@ public class FirebasePlugin extends CordovaPlugin {
                 try {
                     if (mAchievementsClient != null) {
                         String achievementId = args.getString(0);
-
                         mAchievementsClient.unlock(achievementId);
                     }
                 } catch (Exception e) {
