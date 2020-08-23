@@ -20,6 +20,7 @@
 	<preference name="FIREBASE_CRASHLYTICS_COLLECTION_ENABLED" default="true" />
 
 	<platform name="android">
+		<preference name="APP_ID" />
 		<preference name="ANDROID_ICON_ACCENT" default="#FF00FFFF" />
 
 		<js-module name="FirebasePlugin" src="www/firebase.js">
@@ -30,6 +31,9 @@
 				<param name="android-package" value="org.apache.cordova.firebase.FirebasePlugin" />
 				<param name="onload" value="true" />
 			</feature>
+		</config-file>
+		<config-file target="res/values/strings.xml" parent="/*">
+			<string name="app_id">$APP_ID</string>
 		</config-file>
 		<config-file target="AndroidManifest.xml" parent="/*">
 			<uses-permission android:name="android.permission.INTERNET" />
@@ -64,6 +68,7 @@
 		<!-- Default versions for Gradle dependencies -->
 		<preference name="ANDROID_PLAY_SERVICES_TAGMANAGER_VERSION" default="17.0.0" />
 		<preference name="ANDROID_PLAY_SERVICES_AUTH_VERSION" default="18.0.0" />
+		<preference name="ANDROID_PLAY_SERVICES_GAMES_VERSION" default="18.0.1" />
 		<preference name="ANDROID_FIREBASE_ANALYTICS_VERSION" default="17.4.3" />
 		<preference name="ANDROID_FIREBASE_MESSAGING_VERSION" default="20.2.1" />
 		<preference name="ANDROID_FIREBASE_CONFIG_VERSION" default="19.1.4" />
@@ -75,6 +80,7 @@
 		<preference name="ANDROID_FIREBASE_CRASHLYTICS_NDK_VERSION" default="17.0.1" />
 		<preference name="ANDROID_GSON_VERSION" default="2.8.6" />
 
+		<framework src="com.google.android.gms:play-services-games:$ANDROID_PLAY_SERVICES_GAMES_VERSION" />
 		<framework src="com.google.android.gms:play-services-tagmanager:$ANDROID_PLAY_SERVICES_TAGMANAGER_VERSION" />
 		<framework src="com.google.android.gms:play-services-auth:$ANDROID_PLAY_SERVICES_AUTH_VERSION" />
 		<framework src="com.google.firebase:firebase-analytics:$ANDROID_FIREBASE_ANALYTICS_VERSION" />
