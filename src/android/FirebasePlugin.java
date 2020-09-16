@@ -416,6 +416,8 @@ public class FirebasePlugin extends CordovaPlugin {
                 return true;
             } else if (action.equals("unlockAchievement")) {
                 this.unlockAchievement(callbackContext, args);
+            } else if (action.equals("setAchievementSteps")) {
+                this.setAchievementSteps(callbackContext, args);
             } else if (action.equals("showAchievements")) {
                 this.showAchievements(callbackContext);
             } else if (action.equals("submitScore")) {
@@ -1673,6 +1675,22 @@ public class FirebasePlugin extends CordovaPlugin {
                     if (mAchievementsClient != null) {
                         String achievementId = args.getString(0);
                         mAchievementsClient.unlock(achievementId);
+                    }
+                } catch (Exception e) {
+                    handleExceptionWithContext(e, callbackContext);
+                }
+            }
+        });
+    }
+
+    public void setAchievementSteps(final CallbackContext callbackContext, final JSONArray args){
+        cordova.getThreadPool().execute(new Runnable() {
+            public void run() {
+                try {
+                    if (mAchievementsClient != null) {
+                        String achievementId = args.getString(0);
+                        Integer steps = args.getInt(1);
+                        mAchievementsClient.setSteps(achievementId, steps);
                     }
                 } catch (Exception e) {
                     handleExceptionWithContext(e, callbackContext);

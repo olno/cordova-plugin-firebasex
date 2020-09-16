@@ -321,6 +321,12 @@ interface FirebasePlugin {
         success: () => void,
         error: (err: string) => void
     ): void
+    setAchievementSteps(
+        achievementId: string,
+        steps: number,
+        success: () => void,
+        error: (err: string) => void
+    ): void
     showAchievements(
         success: () => void,
         error: (err: string) => void

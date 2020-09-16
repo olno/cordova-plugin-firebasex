@@ -396,6 +396,17 @@ exports.unlockAchievement = function (achievementId, success, error) {
     exec(success, error, "FirebasePlugin", "unlockAchievement", [achievementId]);
 };
 
+exports.setAchievementSteps = function (achievementId, steps, success, error) {
+    if (typeof achievementId !== 'string')
+        return error("'achievementId' must be a string specifying the achievementId");
+
+    if (typeof steps !== 'number')
+        return error("'number' must be a number specifying the steps");
+
+    exec(success, error, "FirebasePlugin", "setAchievementSteps", [achievementId, steps]);
+};
+
+
 exports.showAchievements = function (success, error) {
     exec(success, error, "FirebasePlugin", "showAchievements", []);
 };
