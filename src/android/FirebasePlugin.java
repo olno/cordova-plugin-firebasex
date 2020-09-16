@@ -1689,7 +1689,7 @@ public class FirebasePlugin extends CordovaPlugin {
                 try {
                     if (mAchievementsClient != null) {
                         String achievementId = args.getString(0);
-                        Integer steps = args.getInt(1);
+                        int steps = args.getInt(1);
                         mAchievementsClient.setSteps(achievementId, steps);
                     }
                 } catch (Exception e) {
